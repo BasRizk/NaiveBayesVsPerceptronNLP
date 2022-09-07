@@ -23,7 +23,6 @@ class Features:
         texts, self.labels = map(list, zip(*data_split))
 
         self.tokenized_text = [tokenize(text) for text in texts]
-        breakpoint()
         
         self.tokens_count =\
             Counter([
@@ -59,27 +58,6 @@ class Features:
                     
     @classmethod 
     def get_features(cls, tokenized, model):
-        # TODO: implement this method by implementing different classes for different features 
+        # implemented through different classes for different features 
         # Hint: try simple general lexical features first before moving to more resource intensive or dataset specific features 
-        
-        # TODO check tokenized is 2d array or 1d array (sentence(s))
-
-        features = []
-        token_to_embed = model['token_to_embed']
-        for sentence in tokenized:
-            embed_sentence = []
-            for token in sentence:
-                embed = token_to_embed.get(token)
-                if embed is not None:
-                    embed_sentence.append(embed)
-                else:
-                    embed_sentence.append(token_to_embed['<OOV>'])
-            features.append(embed_sentence)
-        return features
-        # elif model['type'] == Perceptron.__class__:
-        #     # TODO
-        #     pass
-        # else:
-        #     pass
-                    
-                    
+        pass

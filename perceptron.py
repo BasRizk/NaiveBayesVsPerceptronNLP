@@ -3,9 +3,28 @@
 """
 import numpy as np
 
-from Features import Features
+from Features import Features, tokenize
 from Model import *
 
+class NBFeatures(Features):
+    @classmethod 
+    def get_features(cls, tokenized, model):
+        # TODO check tokenized is 2d array or 1d array (sentence(s))
+        features = []
+        token_to_embed = model['token_to_embed']
+        for sentence in tokenized:
+            embed_sentence = []
+            for token in sentence:
+                embed = token_to_embed.get(token)
+                if embed is not None:
+                    embed_sentence.append(embed)
+                else:
+                    embed_sentence.append(token_to_embed['<OOV>'])
+            features.append(embed_sentence)
+        return features
+
+                    
+    
 class Perceptron(Model):
     def train(self, input_file):
         """
@@ -18,8 +37,11 @@ class Perceptron(Model):
         features = Features(input_file)
         features_size = 0 # TODO
         model = {
+            'type': Perceptron.__class__,
             'weights' : np.random(features_size),
-            'options' : features.labelset
+            'options' : features.labelset,
+            'token_to_embed': features.token_to_embed,
+            'embed_to_token': features.embed_to_token
         }
         epochs = 10 # TODO tunable
         for epoch in range(epochs):
