@@ -15,13 +15,13 @@ def tokenize(text):
 
 class Features:
 
-    def __init__(self, data_file):
-        with open(data_file) as file:
+    def __init__(self, data_file, vocab_size=None):
+        with open(data_file, encoding="utf-8") as file:
             data = file.read().splitlines()
-
+        
         data_split = map(methodcaller("rsplit", "\t", 1), data)
         texts, self.labels = map(list, zip(*data_split))
-
+        
         self.tokenized_text = [tokenize(text) for text in texts]
         
         self.tokens_count =\
@@ -30,19 +30,28 @@ class Features:
                 for tokenized_sentence in self.tokenized_text
                 for t in tokenized_sentence
             ])
-            
-        self.labelset = list(set(self.labels))
+        if vocab_size is None:
+            self.vocab_size = len(self.tokens_count)
+        elif 0 < vocab_size <= 1:
+            self.vocab_size = int(len(self.tokens_count)*vocab_size)
+        elif vocab_size > 1:
+            self.vocab_size = int(vocab_size)
+        else:
+            raise Exception("Vocab size out of bounds")
 
+        self.labelset = list(set(self.labels))
+        
         self._make_encoding_dict()
         
 
     def _make_encoding_dict(self):
         self.token_to_embed = {}        
         self.token_to_embed['__OOV__'] = 0
-        self.token_to_embed['__PAD__'] = 1
         
-        for i, token in enumerate(self.tokens_count):
-            self.token_to_embed[token] = i+2
+        print(f'Featurization uses {self.vocab_size} vocabulary.')        
+        
+        for i, (token, _) in enumerate(self.tokens_count.most_common(self.vocab_size)):
+            self.token_to_embed[token] = i+1
 
         self.embed_to_token = {
             embed: token 
