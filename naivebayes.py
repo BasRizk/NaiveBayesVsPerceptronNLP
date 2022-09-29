@@ -10,8 +10,10 @@ from collections import Counter, defaultdict
 from math import log
 import operator
 
+import numpy as np
 from Features import Features, tokenize
 from Model import *
+
 
 class NBFeatures(Features):
     @classmethod 
@@ -27,6 +29,11 @@ class NBFeatures(Features):
         return features
 
 class NaiveBayes(Model):
+    
+    def __init__(self, model_file, vocab_size=None):
+        super().__init__(model_file)
+        self.vocab_size = vocab_size
+        
         
     def train(self, input_file):
         """
@@ -37,7 +44,7 @@ class NaiveBayes(Model):
         
         wprobdenom = '__ALL__'
         
-        nbFeatures = NBFeatures(input_file)
+        nbFeatures = NBFeatures(input_file, vocab_size=self.vocab_size)
         
         model = {
             'type': NaiveBayes.__class__,
@@ -45,15 +52,24 @@ class NaiveBayes(Model):
             'words_probs': {},
             'options': nbFeatures.labelset,
             'token_to_embed': nbFeatures.token_to_embed,
-            'embed_to_token': nbFeatures.embed_to_token
+            'embed_to_token': nbFeatures.embed_to_token,
+            'vocab_size': self.vocab_size,
+
+            # 'label_to_embed': nbFeatures.label_to_embed,
+            # 'embed_to_label': nbFeatures.embed_to_label,
         }
                 
         wscores = defaultdict(lambda: Counter())
         cscores = Counter()
         
-        list_of_features = list(map(lambda x: NBFeatures.get_features(x, model), nbFeatures.tokenized_text))
-        # breakpoint()
-        for features, label in zip(list_of_features, nbFeatures.labels):
+        features_list = list(map(lambda x: NBFeatures.get_features(x, model), nbFeatures.tokenized_text))
+        # Y_true = list(map(lambda x: model['label_to_embed'][x], nbFeatures.labels))
+        
+        cutoff = int(len(features_list)*0.9)
+        X_train, X_valid = features_list[:cutoff], features_list[cutoff:]
+        Y_train, Y_valid = nbFeatures.labels[:cutoff], nbFeatures.labels[cutoff:]
+        
+        for features, label in zip(X_train, Y_train):
             cscores[label] += 1
             for f in features:
                 wscores[label][f] += 1
@@ -74,11 +90,40 @@ class NaiveBayes(Model):
                 # Laplace Smoothing (+1)
                 # Overriding vocab values if applicable
                 model['words_probs'][label][feature] = (score + 1) / (wscores[label][wprobdenom] + 1)
+        
+        
+        # Validate
+        train_err =\
+            np.sum(np.array(self._classify(X_train, model)) != np.array(Y_train))/len(Y_train)
+
+        valid_err =\
+            np.sum(np.array(self._classify(X_valid, model)) != np.array(Y_valid))/len(Y_valid)
+            
+        print(f'TrainErr = {train_err}, ValidErr = {valid_err}', end='\n')
             
         ## Save the model
         self.save_model(model)
+        print('Saved model.')
         return model
 
+
+    def _classify(self, features_list, model):
+        def evaluate(features, option, model):
+            score = log(model['categories_probs'][option])
+            for f in features:
+                score += log(model['words_probs'][option][f])
+            return score    
+        
+        preds = []
+        for features in features_list:
+            scores = {}
+            for option in model['options']:
+                scores[option] = evaluate(features, option, model)
+            preds.append(
+                max(scores.items(), key=operator.itemgetter(1))[0]
+            )
+        return preds
+        
     def classify(self, input_file, model):
         """
         This method will be called by us for the validation stage and or you can call it for evaluating your code 
@@ -86,29 +131,13 @@ class NaiveBayes(Model):
         :param input_file: path to input file with a text per line without labels
         :param model: the pretrained model
         :return: predictions list
-        """ 
-        
-        def evaluate(features, option, model):
-            score = log(model['categories_probs'][option])
-            for f in features:
-                score += log(model['words_probs'][option][f])
-            return score    
-        
+        """         
         with open(input_file) as file:
             tokenized_sentences =\
                 map(tokenize, file.read().splitlines())
-        
-        # model = self.load_model()
-        preds = []
-        for tokens in tokenized_sentences:
-            features = NBFeatures.get_features(tokens, model)
-            scores = {}
-            for option in model['options']:
-                scores[option] = evaluate(features, option, model)
-            preds.append(
-                max(scores.items(), key=operator.itemgetter(1))[0]
-            )
-                    
+
+        features_list = list(map(lambda x: NBFeatures.get_features(x, model), tokenized_sentences))
+        preds = self._classify(features_list, model)    
         return preds
 
 
